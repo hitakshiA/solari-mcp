@@ -4,7 +4,7 @@
 import { readFileSync, writeFileSync } from "node:fs";
 import { gzipSync } from "node:zlib";
 
-const reflex = new URL("../../reflex/", import.meta.url);
+const reflex = new URL("../../solari-reflex/", import.meta.url);
 const observer = readFileSync(new URL("dist/page/observer.js", reflex), "utf8");
 const install = observer.match(/export function installObserver[\s\S]*?\n}\n/)?.[0];
 const version = observer.match(/export const OBSERVER_VERSION = (\d+)/)?.[1];
