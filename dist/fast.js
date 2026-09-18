@@ -120,7 +120,9 @@ if ! python3 -c 'import gi; gi.require_version("Atspi","2.0")' 2>/dev/null; then
 fi
 mkdir -p /opt/reflex
 echo '${REFLEXD_GZ_B64}' | base64 -d | gunzip > /opt/reflex/reflexd.py
-P=$(pgrep -x xfce4-session | head -1)
+# A fresh desktop may still be starting its session; wait for it rather than fail silently.
+for i in $(seq 1 60); do P=$(pgrep -x xfce4-session | head -1 || true); [ -n "$P" ] && break; sleep 0.5; done
+[ -n "$P" ] || { echo "no desktop session (xfce4-session) is running"; exit 1; }
 ps -o user= -p "$P" | tr -d ' ' > /opt/reflex/user
 tr '\\0' '\\n' < /proc/$P/environ | grep -E '^(DBUS_SESSION_BUS_ADDRESS|DISPLAY|XDG_RUNTIME_DIR|HOME|XAUTHORITY)=' > /opt/reflex/session.env
 cat > /opt/reflex/start.sh <<'SH'
@@ -186,7 +188,7 @@ export async function desktopAct(e, last, a) {
         action: {
             kind,
             ...(el ? { node: el.node } : {}),
-            ...(kind === "type" ? { text: a.text ?? "" } : {}),
+            ...(kind === "type" ? { text: a.text ?? "", ...(a.submit ? { submit: true } : {}) } : {}),
             ...(kind === "select" ? { value: a.value ?? "" } : {}),
             ...(kind === "press" ? { key: a.key ?? "Enter" } : {}),
             ...(kind === "scroll" ? { direction: a.direction ?? "down" } : {}),
@@ -194,7 +196,6 @@ export async function desktopAct(e, last, a) {
         guard: el ? last.guards[el.node] ?? null : null,
     });
     if (r?.error) throw new Error(`${a.ref ?? kind}: ${r.error}; observe again`);
-    if (kind === "type" && a.submit) await reflexd(e, "/act", { action: { kind: "press", key: "Enter" }, guard: null });
     return desktopObserve(e);
 }
 

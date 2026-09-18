@@ -15,9 +15,10 @@
     "build": "tsc",
     "typecheck": "tsc --noEmit",
     "test": "npm run build && node --test test/*.test.mjs",
-    "build:bundle": "esbuild src/cli.ts --bundle --platform=node --format=cjs --target=node18 --outfile=dist/solari-mcp.bundle.cjs --log-level=warning",
-    "build:bundle:http": "esbuild src/http.ts --bundle --platform=node --format=cjs --target=node18 --outfile=dist/solari-mcp-http.bundle.cjs --log-level=warning",
-    "build:all": "npm run build && npm run build:bundle && npm run build:bundle:http"
+    "build:bundle": "esbuild dist/cli.js --bundle --platform=node --format=cjs --target=node18 --outfile=dist/solari-mcp.bundle.cjs --log-level=warning",
+    "build:bundle:http": "esbuild dist/http.js --bundle --platform=node --format=cjs --target=node18 --outfile=dist/solari-mcp-http.bundle.cjs --log-level=warning",
+    "build:all": "npm run build && npm run build:bundle && npm run build:bundle:http",
+    "sync": "node scripts/sync-observer.mjs"
   },
   "engines": {
     "node": ">=18"
