@@ -1,0 +1,49 @@
+{
+  "name": "@solarisdk/mcp",
+  "version": "0.5.0",
+  "description": "Model Context Protocol server for the Solari cloud browser, sandboxes + desktops \u2014 drive them from Claude Desktop/Cowork, Claude Code, Cursor, etc.",
+  "type": "module",
+  "bin": {
+    "solari-mcp": "./dist/cli.js"
+  },
+  "main": "./dist/server.js",
+  "files": [
+    "dist",
+    "README.md"
+  ],
+  "scripts": {
+    "build": "tsc",
+    "typecheck": "tsc --noEmit",
+    "test": "npm run build && node --test test/*.test.mjs",
+    "build:bundle": "esbuild src/cli.ts --bundle --platform=node --format=cjs --target=node18 --outfile=dist/solari-mcp.bundle.cjs --log-level=warning",
+    "build:bundle:http": "esbuild src/http.ts --bundle --platform=node --format=cjs --target=node18 --outfile=dist/solari-mcp-http.bundle.cjs --log-level=warning",
+    "build:all": "npm run build && npm run build:bundle && npm run build:bundle:http"
+  },
+  "engines": {
+    "node": ">=18"
+  },
+  "license": "MIT",
+  "dependencies": {
+    "@modelcontextprotocol/sdk": "^1.29.0",
+    "@solarisdk/sdk": "^0.1.2",
+    "puppeteer-core": "^24.43.1",
+    "zod": "^3.23.0"
+  },
+  "devDependencies": {
+    "@types/node": "^22.0.0",
+    "esbuild": "^0.28.1",
+    "typescript": "^5.6.0"
+  },
+  "publishConfig": {
+    "access": "public"
+  },
+  "keywords": [
+    "mcp",
+    "modelcontextprotocol",
+    "solari",
+    "browser",
+    "sandbox",
+    "desktop",
+    "agent"
+  ]
+}
