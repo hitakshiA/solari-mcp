@@ -1,4 +1,60 @@
-# solari-mcp
+# solari-mcp (solari-fast fork)
+
+> **This is a fork of [`@solarisdk/mcp`](https://www.npmjs.com/package/@solarisdk/mcp) 0.5.0.** The first commit is the npm package exactly as published. Every commit after it is one of our changes, with its reason. Solari's original README follows the fork notes below, unchanged.
+
+## What this fork adds
+
+Agents driving Solari through this server had three ways to look at the screen: raw page text, raw HTML, or a screenshot. They acted by CSS selector or pixel coordinates. Every step cost a tool call to look, one to act, and another to look again. In practice, models gave up and wrote JavaScript for `solari_browser_evaluate`.
+
+This fork adds a way to see and act that any MCP agent can use, including Codex, Claude and Cursor.
+
+| Tool | What it does |
+|---|---|
+| `solari_browser_observe` | The page as numbered controls (`e7 button "Search"`) plus its visible text. It's small, stable, and cheap in tokens. |
+| `solari_browser_act` | Acts on a control by its number (click, type, select, press or scroll) and **returns the fresh observation in the same call**. |
+| `solari_desktop_observe` | The desktop's active window as numbered controls, read from the Linux accessibility tree. |
+| `solari_desktop_act` | The same for desktops. |
+| `solari_desktop_launch` | Starts an app with accessibility on, so the two tools above can read it. |
+
+Two rules hold for every action:
+- **Stale targets are refused.** Each act is re-checked against the observation it came from. If the control changed, moved under a dialog or disappeared, nothing is dispatched.
+- **No coordinates from the model.** The model never supplies coordinates, selectors or script.
+
+### Measured
+
+Codex CLI with GPT-6 Astra, on the same task: open the Wikipedia article about Gödel's incompleteness theorems using the site's search, on a Solari browser.
+
+| Server | Time | Tool calls | Input tokens |
+|---|---|---|---|
+| `@solarisdk/mcp` 0.5.0 as published | 81.7 s | 9 | 234k |
+| This fork | **50.4 s** | 6 | 180k |
+
+These are single runs, driven from Bengaluru against us-west. Codex chose the new tools on its own, without being prompted to.
+
+### Changes, commit by commit
+
+1. **`dist/fast.js` (new): observe and act.**
+   - **Browsers:** the page is read in-page with the [solari-reflex](https://github.com/hitakshiA/solari-reflex) observer. It covers visible, enabled controls only, drops covered ones, and gives shared labels disambiguating context.
+   - **Desktops:** the tree is read by `reflexd`. This small daemon is installed into the desktop on first use and turns the accessibility bus on (off in the stock image). It's reached over the desktop's preview URL, so each call is one HTTP request rather than one `exec`. It's sent gzipped because Solari's exec rejects request bodies over 16 KB.
+2. **`dist/browser.js`:** registers `solari_browser_observe` and `solari_browser_act`. `solari_browser_type` no longer waits 20 ms per key; a 200-character field took 4 s to fill.
+3. **`dist/server.js`:** registers `solari_desktop_observe`, `solari_desktop_act` and `solari_desktop_launch`.
+4. **`dist/observe-source.js` and `scripts/sync-observer.mjs`:** the observer and daemon are generated from solari-reflex, so this server and the agent read screens identically. Regenerate them with `node scripts/sync-observer.mjs`.
+
+All of Solari's existing tools are unchanged and keep working.
+
+### Use it
+
+Point your MCP client at this fork's `dist/cli.js` instead of `npx @solarisdk/mcp`. For example, with Codex:
+
+```bash
+codex -c 'mcp_servers.solari.command="node"' \
+      -c 'mcp_servers.solari.args=["/path/to/solari-mcp/dist/cli.js"]' \
+      -c 'mcp_servers.solari.env={SOLARI_API_KEY="slr_live_…"}'
+```
+
+---
+
+## Solari's original README
 
 A [Model Context Protocol](https://modelcontextprotocol.io) server that lets AI
 agents (Claude Desktop **incl. Cowork**, Claude Code, Cursor, Windsurf, …) use

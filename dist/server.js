@@ -9,6 +9,7 @@
 // The toolset is built as a plain map (makeToolset) so it can be unit-tested
 // against a mock SolariClient without an MCP transport.
 import { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
+import { desktopAct, desktopLaunch, desktopObserve, formatObservation } from "./fast.js";
 import { StdioServerTransport } from "@modelcontextprotocol/sdk/server/stdio.js";
 import { z } from "zod";
 import { SolariClient } from "@solarisdk/sdk";
@@ -280,6 +281,56 @@ export function makeToolset(client, reg) {
                 const e = await desktop(a.sessionId);
                 await e.handle.keyboard.press(a.key);
                 return text({ ok: true });
+            },
+        },
+        solari_desktop_observe: {
+            description: "Read the desktop's active window as numbered controls from its accessibility tree " +
+                "(e.g. `e4 menuitem \"File\"`) plus visible text. Faster and more precise than a screenshot. " +
+                "The first call enables accessibility on the desktop (~10 s). Act with solari_desktop_act.",
+            inputSchema: { sessionId: z.string() },
+            handler: async (a) => {
+                const e = await desktop(a.sessionId);
+                e.observation = await desktopObserve(e);
+                return text(formatObservation(e.observation));
+            },
+        },
+        solari_desktop_act: {
+            description: "Act on a control from the last solari_desktop_observe by its id, then return the fresh " +
+                "observation. action: click | type (text, submit?) | select (value) | press (key: Enter|Escape|Tab) | " +
+                "scroll (direction). Refuses, without acting, if the control changed since it was observed.",
+            inputSchema: {
+                sessionId: z.string(),
+                action: z.enum(["click", "type", "select", "press", "scroll"]),
+                ref: z.string().optional(),
+                text: z.string().optional(),
+                submit: z.boolean().optional(),
+                value: z.string().optional(),
+                key: z.string().optional(),
+                direction: z.enum(["up", "down"]).optional(),
+            },
+            handler: async (a) => {
+                const e = await desktop(a.sessionId);
+                e.observation = await desktopAct(e, e.observation, a);
+                return text(formatObservation(e.observation));
+            },
+        },
+        solari_desktop_launch: {
+            description: "Launch a desktop app (e.g. 'soffice --calc', 'thunar', 'mousepad') with accessibility on, " +
+                "so solari_desktop_observe can read it. Returns the observation once its window is up.",
+            inputSchema: { sessionId: z.string(), command: z.string(), args: z.array(z.string()).optional() },
+            handler: async (a) => {
+                const e = await desktop(a.sessionId);
+                const [cmd, ...rest] = a.command.split(/\s+/);
+                await desktopLaunch(e, cmd, [...rest, ...(a.args ?? [])]);
+                let o;
+                for (let i = 0; i < 60; i++) {
+                    o = await desktopObserve(e).catch(() => undefined);
+                    if (o && o.elements.length > 0) break;
+                    await new Promise((r) => setTimeout(r, 500));
+                }
+                if (!o) throw new Error(`${a.command} did not open a window`);
+                e.observation = o;
+                return text(formatObservation(o));
             },
         },
         solari_open_app: {

@@ -6,6 +6,7 @@
 // session's lifetime — the signed ws URL cannot be re-dialed after 90 minutes.
 import puppeteer from "puppeteer-core";
 import { z } from "zod";
+import { browserAct, browserObserve, formatObservation } from "./fast.js";
 const text = (o) => ({
     content: [{ type: "text", text: typeof o === "string" ? o : JSON.stringify(o, null, 2) }],
 });
@@ -659,6 +660,38 @@ export function makeBrowserToolset(cfg, reg, deps = defaultDeps) {
                 return text({ url: page.url(), title: await page.title(), status: resp?.status() ?? null });
             },
         },
+        solari_browser_observe: {
+            description: "Read the page as numbered controls (e.g. `e7 button \"Search\"`) plus its visible text. " +
+                "Cheaper and more precise than a screenshot or HTML. Act on a control with solari_browser_act.",
+            inputSchema: { sessionId: z.string() },
+            handler: async (a) => {
+                const e = need(a.sessionId);
+                const page = await activePage(e);
+                e.observation = await browserObserve(page);
+                return text(formatObservation(e.observation));
+            },
+        },
+        solari_browser_act: {
+            description: "Act on a control from the last solari_browser_observe by its id, then return the fresh " +
+                "observation (no separate observe needed). action: click | type (text, submit?) | select (value) | " +
+                "press (key) | scroll (direction). Refuses, without acting, if the control changed since it was observed.",
+            inputSchema: {
+                sessionId: z.string(),
+                action: z.enum(["click", "type", "select", "press", "scroll"]),
+                ref: z.string().optional(),
+                text: z.string().optional(),
+                submit: z.boolean().optional(),
+                value: z.string().optional(),
+                key: z.string().optional(),
+                direction: z.enum(["up", "down"]).optional(),
+            },
+            handler: async (a) => {
+                const e = need(a.sessionId);
+                const page = await activePage(e);
+                e.observation = await browserAct(page, e.observation, a);
+                return text(formatObservation(e.observation));
+            },
+        },
         solari_browser_read_page: {
             description: "Read the current page. format 'text' (default) returns visible text; 'links' returns " +
                 "clickable links {text, href}; 'html' returns HTML with scripts/styles stripped. " +
@@ -763,7 +796,8 @@ export function makeBrowserToolset(cfg, reg, deps = defaultDeps) {
                         });
                     }
                 }
-                await page.keyboard.type(a.text, { delay: 20 });
+                // No per-key delay: 20 ms a character made a 200-character field take 4 s.
+                await page.keyboard.type(a.text);
                 if (a.pressEnter)
                     await page.keyboard.press("Enter");
                 return text({ ok: true });
