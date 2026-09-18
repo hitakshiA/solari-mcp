@@ -150,14 +150,16 @@ export async function ensureReflexd(e) {
         throw new Error(`could not start the desktop observer: ${String(r.stderr || r.stdout).slice(-300)}`);
     }
     const preview = await e.handle.previewUrl(REFLEXD_PORT);
-    const url = String(preview?.url ?? preview).replace(/\/$/, "");
-    e.reflexd = { url, token };
+    e.reflexd = { url: String(preview?.url ?? preview), token };
     return e.reflexd;
 }
 
 async function reflexd(e, path, body) {
     const d = await ensureReflexd(e);
-    const r = await fetch(`${d.url}${path}`, {
+    // Preview URLs carry their token in the query string; set the path on the parsed URL.
+    const u = new URL(d.url);
+    u.pathname = path;
+    const r = await fetch(u, {
         method: "POST",
         headers: { authorization: `Bearer ${d.token}`, "content-type": "application/json" },
         body: JSON.stringify(body),
